@@ -41,7 +41,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
-CREDS = Credentials.from_service_account_file("service.json", scopes=SCOPES)
+CREDS = Credentials.from_service_account_file("/etc/secrets/service.json", scopes=SCOPES)
 client = gspread.authorize(CREDS)
 
 today = datetime.now().strftime("%Y-%m-%d")
