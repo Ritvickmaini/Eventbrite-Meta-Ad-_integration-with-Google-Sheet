@@ -9,6 +9,8 @@ SOURCE_TABS = ["Corporate Wellbeing", "Southampton", "Business Revival Series"]
 TARGET_SHEET = "Expo-Sales-Management"
 EXHIBITOR_TAB = "exhibitors-1"
 SPEAKER_TAB = "speakers-2"
+VISITOR_TAB = "visitors"
+
 
 SHOW_MAPPING = {
     "Corporate Wellbeing": "The Corporate Wellbeing Expo",
@@ -31,8 +33,10 @@ META_LEAD_BASED_TABS = [
     "FTE-Lead Based AD-09/12/2025",
     "CTE-Lead Based AD-09/12/2025",
     "BIE-Lead Based AD-09/12/2025",
-    "CWE-Lead Based AD-09/12/2025"
+    "CWE-Lead Based AD-09/12/2025",
+    "Southampton Expo Exhibitor Leads"
 ]
+
 
 
 
@@ -113,6 +117,23 @@ def build_meta_row(mapping, data, lead_source="Meta Lead"):
 
     return new
 
+def build_visitor_row(mapping, data, lead_source):
+    new = [""] * len(mapping)
+
+    new[mapping["Lead Date"]] = today
+    new[mapping["Lead Source"]] = lead_source
+    new[mapping["First_Name"]] = data.get("first")
+    new[mapping["Last Name"]] = data.get("last")
+    new[mapping["Company"]] = data.get("company")
+    new[mapping["Designation"]] = data.get("designation", "")
+    new[mapping["Interested In?"]] = "Visitor"
+    new[mapping["Comments"]] = ""
+    new[mapping["Mobile"]] = data.get("mobile")
+    new[mapping["Email"]] = data.get("email")
+    new[mapping["Show"]] = data.get("show", META_SHOW_NAME)
+
+    return new
+
 
 # ---------------- LOAD EXISTING EMAILS ----------------
 def load_existing_emails():
@@ -127,10 +148,15 @@ def load_existing_emails():
     ex_rows = exhibitor_ws.get_all_values()
     sp_rows = speaker_ws.get_all_values()
 
+    visitor_ws = expo_sheet.worksheet(VISITOR_TAB)
+    visitor_map = get_column_map(visitor_ws.row_values(1))
+    visitor_rows = visitor_ws.get_all_values()
+
     exhibitor_existing = {row[exhibitor_map["Email"]].lower().strip() for row in ex_rows[1:] if row[exhibitor_map["Email"]]}
     speaker_existing = {row[speaker_map["Email"]].lower().strip() for row in sp_rows[1:] if row[speaker_map["Email"]]}
+    visitor_existing = {row[visitor_map["Email"]].lower().strip() for row in visitor_rows[1:] if row[visitor_map["Email"]]}
 
-    return exhibitor_existing, speaker_existing
+    return exhibitor_existing, speaker_existing, visitor_existing
 
 # ---------------- PROCESS 1: EVENTBRITE ----------------
 def process_eventbrite(tab_name, exhibitor_batch, speaker_batch, existing_exhibitors, existing_speakers):
@@ -227,7 +253,7 @@ def process_meta_standard(exhibitor_batch, existing_exhibitors):
 
 
 # ---------------- PROCESS 3: META CAMPAIGN LEADS ----------------
-def process_meta_campaign(exh_batch, spk_batch, existing_exh, existing_spk):
+def process_meta_campaign(exh_batch, spk_batch, visitor_batch, existing_exh, existing_spk, vis_existing):
 
     sheet = client.open(META_SOURCE_SHEET).worksheet(META_CAMPAIGN_TAB)
     rows = sheet.get_all_values()
@@ -276,9 +302,26 @@ def process_meta_campaign(exh_batch, spk_batch, existing_exh, existing_spk):
             })
             existing_spk.add(email)
 
+        # Visitor (both NO)
+        if (
+            row[idx_exhibitor].strip().lower() == "no"
+            and row[idx_speaker].strip().lower() == "no"
+            and email not in vis_existing
+        ):
+            visitor_batch.append({
+                "first": first,
+                "last": last,
+                "company": row[idx_company],
+                "mobile": row[idx_phone],
+                "email": email,
+                "show": META_SHOW_NAME
+            })
+            vis_existing.add(email)
+
+
 
 # ---------------- PROCESS 4: META LONDON CAMPAIGN LEADS ----------------
-def process_meta_london_campaign(exh_batch, spk_batch, existing_exh, existing_spk):
+def process_meta_london_campaign(exh_batch, spk_batch, visitor_batch, existing_exh, existing_spk, vis_existing):
 
     sheet = client.open(META_SOURCE_SHEET).worksheet(META_LONDON_TAB)
     rows = sheet.get_all_values()
@@ -328,6 +371,23 @@ def process_meta_london_campaign(exh_batch, spk_batch, existing_exh, existing_sp
                 "show": META_LONDON_SHOW_NAME
             })
             existing_spk.add(email)
+        
+        # Visitor (both NO)
+        if (
+            row[idx_exhibitor].strip().lower() == "no"
+            and row[idx_speaker].strip().lower() == "no"
+            and email not in vis_existing
+        ):
+            visitor_batch.append({
+                "first": first,
+                "last": last,
+                "company": row[idx_company],
+                "mobile": row[idx_phone],
+                "email": email,
+                "show": META_LONDON_SHOW_NAME
+            })
+            vis_existing.add(email)
+
 
 # ---------------- PROCESS 5: META LEAD BASED ADS ----------------
 def process_meta_lead_based_ads(exh_batch, existing_exh):
@@ -387,6 +447,8 @@ def batch_insert_rows(ws_name, rows, mode="exhibitor", lead_source="Eventbrite")
     # -----------------------------------------------
     if lead_source == "Eventbrite":
         formatted = [build_eventbrite_row(mapping, r, mode) for r in rows]
+    elif mode == "visitor":
+        formatted = [build_visitor_row(mapping, r, lead_source) for r in rows]
     else:
         formatted = [build_meta_row(mapping, r, lead_source) for r in rows]
     # -----------------------------------------------
@@ -400,7 +462,7 @@ def batch_insert_rows(ws_name, rows, mode="exhibitor", lead_source="Eventbrite")
 def run_all():
     print("\n=== Combined Processing Started ===")
 
-    exh_existing, spk_existing = load_existing_emails()
+    exh_existing, spk_existing, vis_existing = load_existing_emails()
 
     event_exh = []
     event_spk = []
@@ -411,7 +473,7 @@ def run_all():
     meta_london_exh = []
     meta_london_spk = []
     meta_lead_based_exh = []
-
+    meta_visitors = []
 
 
     # ---- Process Eventbrite ----
@@ -428,23 +490,27 @@ def run_all():
     print(" Exhibitors:", len(meta_std))
 
     # ---- Process Meta Campaign Leads ----
-    process_meta_campaign(meta_campaign_exh, meta_campaign_spk, exh_existing, spk_existing)
+    process_meta_campaign(meta_campaign_exh, meta_campaign_spk, meta_visitors, exh_existing, spk_existing, vis_existing)
 
     print("\nMeta Campaign Summary:")
     print(" Exhibitors:", len(meta_campaign_exh))
     print(" Speakers:", len(meta_campaign_spk))
+    print(" Visitors:", len(meta_visitors))
 
     # ---- Process Meta London Campaign Leads ----
     process_meta_london_campaign(
         meta_london_exh,
         meta_london_spk,
+        meta_visitors,
         exh_existing,
-        spk_existing
+        spk_existing,
+        vis_existing
     )
 
     print("\nMeta London Campaign Summary:")
     print(" Exhibitors:", len(meta_london_exh))
     print(" Speakers:", len(meta_london_spk))
+    print(" Visitors:", len(meta_visitors))
 
         # ---- Process Meta Lead Based Ads ----
     process_meta_lead_based_ads(
@@ -479,7 +545,12 @@ def run_all():
     if meta_london_spk:
         batch_insert_rows(SPEAKER_TAB,meta_london_spk,"speaker","Meta Lead – London Campaign")
     
-    if meta_lead_based_exh:batch_insert_rows(EXHIBITOR_TAB,meta_lead_based_exh,"exhibitor","Meta Lead – Lead Based Ad")
+    if meta_lead_based_exh:
+        batch_insert_rows(EXHIBITOR_TAB,meta_lead_based_exh,"exhibitor","Meta Lead – Lead Based Ad")
+
+    if meta_visitors:
+        batch_insert_rows(VISITOR_TAB,meta_visitors,mode="visitor",lead_source="Meta Lead – Visitor")
+
 
 
 
