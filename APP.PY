@@ -5,6 +5,15 @@ from datetime import datetime
 # ========== CONFIG ==========
 SOURCE_SHEET = "Attendes-Eventbrite"
 SOURCE_TABS = ["Corporate Wellbeing", "Southampton", "Business Revival Series"]
+META_LEAD_BASED_SHOW_MAP = {
+    "CWE-Lead Based AD-09/12/2025": "Corporate Wellbeing Expo",
+    "BGE-Lead Based AD-09/12/2025": "Business Growth Expo",
+    "SME-BE-Lead Based AD-09/12/2025": "SME Business Expo",
+    "FTE-Lead Based AD-09/12/2025": "Future Tech Expo",
+    "CTE-Lead Based AD-09/12/2025": "Communication Technology Expo",
+    "BIE-Lead Based AD-09/12/2025": "Business Innovation Expo",
+}
+
 
 TARGET_SHEET = "Expo-Sales-Management"
 EXHIBITOR_TAB = "exhibitors-1"
@@ -414,7 +423,10 @@ def process_meta_lead_based_ads(exh_batch, existing_exh):
                 continue
 
             first, last = split_full_name(row[idx_full])
-            show_name = extract_expo_name(row[idx_form])
+            show_name = META_LEAD_BASED_SHOW_MAP.get(
+                tab_name.strip(),
+                extract_expo_name(row[idx_form])  # fallback safety
+            )
 
             exh_batch.append({
                 "first": first,
