@@ -4,7 +4,7 @@ from datetime import datetime
 
 # ========== CONFIG ==========
 SOURCE_SHEET = "Attendes-Eventbrite"
-SOURCE_TABS = ["Corporate Wellbeing", "Southampton", "Business Revival Series"]
+SOURCE_TABS = ["Corporate Wellbeing", "Southampton", "Business Revival Series","Milton Keynes Expo"]
 META_LEAD_BASED_SHOW_MAP = {
     "CWE-Lead Based AD-09/12/2025": "Corporate Wellbeing Expo",
     "BGE-Lead Based AD-09/12/2025": "Business Growth Expo",
