@@ -23,7 +23,8 @@ VISITOR_TAB = "visitors"
 
 SHOW_MAPPING = {
     "Corporate Wellbeing": "The Corporate Wellbeing Expo",
-    "Southampton": "Southampton Expo 29 Jan 2026"
+    "Southampton": "Southampton Expo 29 Jan 2026",
+    "Milton Keynes Expo": "Milton Keynes Expo 2026"
 }
 
 # ---- META SOURCES ----
