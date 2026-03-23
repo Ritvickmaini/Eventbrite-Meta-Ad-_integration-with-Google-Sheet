@@ -5,14 +5,7 @@ from datetime import datetime
 # ========== CONFIG ==========
 SOURCE_SHEET = "Attendes-Eventbrite"
 SOURCE_TABS = ["Corporate Wellbeing", "Southampton", "Business Revival Series","Milton Keynes Expo"]
-META_LEAD_BASED_SHOW_MAP = {
-    "CWE-Lead Based AD-09/12/2025": "Corporate Wellbeing Expo",
-    "BGE-Lead Based AD-09/12/2025": "Business Growth Expo",
-    "SME-BE-Lead Based AD-09/12/2025": "SME Business Expo",
-    "FTE-Lead Based AD-09/12/2025": "Future Tech Expo",
-    "CTE-Lead Based AD-09/12/2025": "Communication Technology Expo",
-    "BIE-Lead Based AD-09/12/2025": "Business Innovation Expo",
-}
+
 
 
 TARGET_SHEET = "Expo-Sales-Management"
@@ -27,28 +20,14 @@ SHOW_MAPPING = {
     "Milton Keynes Expo": "Milton Keynes Expo 2026"
 }
 
-# ---- META SOURCES ----
+# ---- META SOURCE ----
 META_SOURCE_SHEET = "Meta Leads"
-META_STANDARD_TAB = "Southampton expo exhibitor 29 Jan 2026"   # Process 2
-META_CAMPAIGN_TAB = "Southamapton Leads Campaign"              # Process 3
-META_SHOW_NAME = "Southampton Expo 29 Jan 2026"
-# ---- META LONDON CAMPAIGN ----
-META_LONDON_TAB = "london Leads Ad Set"
-META_LONDON_SHOW_NAME = "London Expo"
 
-# ---- META LEAD BASED ADS (PROCESS 5) ----
-META_LEAD_BASED_TABS = [
-    "BGE-Lead Based AD-09/12/2025",
-    "SME-BE-Lead Based AD-09/12/2025",
-    "FTE-Lead Based AD-09/12/2025",
-    "CTE-Lead Based AD-09/12/2025",
-    "BIE-Lead Based AD-09/12/2025",
-    "CWE-Lead Based AD-09/12/2025",
-    "Southampton Expo Exhibitor Leads"
-]
-
-
-
+# ---- ACTIVE META EXHIBITOR ADS ----
+ACTIVE_META_EXHIBITOR_TABS = {
+    "MKE-EXIBITORS 29 APRIL 2026-2": "Milton Keynes Expo 2026",
+    "Bournemouth - Exhibitor 2026": "Bournemouth Expo 2026",
+}
 
 # === Google Auth ===
 SCOPES = [
@@ -64,6 +43,13 @@ today = datetime.now().strftime("%Y-%m-%d")
 def get_column_map(header_row):
     return {header.strip(): idx for idx, header in enumerate(header_row) if header.strip() != ""}
 
+def safe_get(row, idx, default=""):
+    if idx is None:
+        return default
+    if idx >= len(row):
+        return default
+    return row[idx].strip()
+
 
 def split_full_name(full):
     if not full:
@@ -73,15 +59,7 @@ def split_full_name(full):
         return parts[0], ""
     return parts[0], " ".join(parts[1:])
 
-def extract_expo_name(form_name):
-    """
-    Example:
-    Business Growth Expo - Exhibitor
-    → Business Growth Expo
-    """
-    if not form_name:
-        return ""
-    return form_name.split("-")[0].strip()
+
 
 
 
@@ -110,40 +88,35 @@ def build_eventbrite_row(mapping, data, mode):
 
 def build_meta_row(mapping, data, lead_source="Meta Lead"):
     new = [""] * len(mapping)
-    new[mapping["Lead Date"]] = today
-    new[mapping["Lead Source"]] = lead_source
-    new[mapping["First_Name"]] = data.get("first")
-    new[mapping["Last Name"]] = data.get("last")
-    new[mapping["Company Name"]] = data.get("company")
-    new[mapping["Mobile"]] = data.get("mobile")
-    new[mapping["Email"]] = data.get("email")
-    new[mapping["Show"]] = data.get("show", META_SHOW_NAME)
+
+    if "Lead Date" in mapping:
+        new[mapping["Lead Date"]] = today
+
+    if "Lead Source" in mapping:
+        new[mapping["Lead Source"]] = lead_source
+
+    if "First_Name" in mapping:
+        new[mapping["First_Name"]] = data.get("first", "")
+
+    if "Last Name" in mapping:
+        new[mapping["Last Name"]] = data.get("last", "")
+
+    if "Company Name" in mapping:
+        new[mapping["Company Name"]] = data.get("company", "")
+
+    if "Mobile" in mapping:
+        new[mapping["Mobile"]] = data.get("mobile", "")
+
+    if "Email" in mapping:
+        new[mapping["Email"]] = data.get("email", "")
+
+    if "Show" in mapping:
+        new[mapping["Show"]] = data.get("show", "")
 
     if "Interested for" in mapping:
-        new[mapping["Interested for"]] = data.get("interest", "")
-
-    if "Lead-Budget" in mapping:
-        new[mapping["Lead-Budget"]] = data.get("budget", "")
+        new[mapping["Interested for"]] = "Exhibitor Opportunity"
 
     return new
-
-def build_visitor_row(mapping, data, lead_source):
-    new = [""] * len(mapping)
-
-    new[mapping["Lead Date"]] = today
-    new[mapping["Lead Source"]] = lead_source
-    new[mapping["First_Name"]] = data.get("first")
-    new[mapping["Last Name"]] = data.get("last")
-    new[mapping["Company"]] = data.get("company")
-    new[mapping["Designation"]] = data.get("designation", "")
-    new[mapping["Interested In?"]] = "Visitor"
-    new[mapping["Comments"]] = ""
-    new[mapping["Mobile"]] = data.get("mobile")
-    new[mapping["Email"]] = data.get("email")
-    new[mapping["Show"]] = data.get("show", META_SHOW_NAME)
-
-    return new
-
 
 # ---------------- LOAD EXISTING EMAILS ----------------
 def load_existing_emails():
@@ -227,220 +200,53 @@ def process_eventbrite(tab_name, exhibitor_batch, speaker_batch, existing_exhibi
             speaker_batch.append(data)
             existing_speakers.add(email)
 
-# ---------------- PROCESS 2: META STANDARD LEADS ----------------
-def process_meta_standard(exhibitor_batch, existing_exhibitors):
-    sheet = client.open(META_SOURCE_SHEET).worksheet(META_STANDARD_TAB)
-    rows = sheet.get_all_values()
-    col = get_column_map(rows[0])
-
-    idx_full = col.get("full_name")
-    idx_company = col.get("provide_your_business_name")
-    idx_phone = col.get("phone_number")
-    idx_email = col.get("email")
-    idx_budget = col.get("please_specify_your_budget")
-
-    for row in rows[1:]:
-        try:
-            email = row[idx_email].lower().strip()
-        except:
-            continue
-
-        if not email or email in existing_exhibitors:
-            continue
-
-        first, last = split_full_name(row[idx_full])
-
-        exhibitor_batch.append({
-            "first": first,
-            "last": last,
-            "company": row[idx_company],
-            "mobile": row[idx_phone],
-            "email": email,
-            "budget": row[idx_budget]
-        })
-
-        existing_exhibitors.add(email)
-
-
-# ---------------- PROCESS 3: META CAMPAIGN LEADS ----------------
-def process_meta_campaign(exh_batch, spk_batch, visitor_batch, existing_exh, existing_spk, vis_existing):
-
-    sheet = client.open(META_SOURCE_SHEET).worksheet(META_CAMPAIGN_TAB)
-    rows = sheet.get_all_values()
-    col = get_column_map(rows[0])
-
-    idx_full = col.get("full_name")
-    idx_company = col.get("provide_your_business_name")
-    idx_phone = col.get("phone_number")
-    idx_email = col.get("email")
-
-    idx_exhibitor = col.get("do_you_want_to_be_an_exhibitor?")
-    idx_speaker = col.get("do_you_want_to_be_a_speaker?")
-
-    for row in rows[1:]:
-        try:
-            email = row[idx_email].strip().lower()
-        except:
-            continue
-
-        if not email:
-            continue
-
-        first, last = split_full_name(row[idx_full])
-
-        # Exhibitor
-        if row[idx_exhibitor].strip().lower() == "yes" and email not in existing_exh:
-            exh_batch.append({
-                "first": first,
-                "last": last,
-                "company": row[idx_company],
-                "mobile": row[idx_phone],
-                "email": email,
-                "interest": "Exhibitor"
-            })
-            existing_exh.add(email)
-
-        # Speaker
-        if row[idx_speaker].strip().lower() == "yes" and email not in existing_spk:
-            spk_batch.append({
-                "first": first,
-                "last": last,
-                "company": row[idx_company],
-                "mobile": row[idx_phone],
-                "email": email,
-                "interest": "Speaker"
-            })
-            existing_spk.add(email)
-
-        # Visitor (both NO)
-        if (
-            row[idx_exhibitor].strip().lower() == "no"
-            and row[idx_speaker].strip().lower() == "no"
-            and email not in vis_existing
-        ):
-            visitor_batch.append({
-                "first": first,
-                "last": last,
-                "company": row[idx_company],
-                "mobile": row[idx_phone],
-                "email": email,
-                "show": META_SHOW_NAME
-            })
-            vis_existing.add(email)
-
-
-
-# ---------------- PROCESS 4: META LONDON CAMPAIGN LEADS ----------------
-def process_meta_london_campaign(exh_batch, spk_batch, visitor_batch, existing_exh, existing_spk, vis_existing):
-
-    sheet = client.open(META_SOURCE_SHEET).worksheet(META_LONDON_TAB)
-    rows = sheet.get_all_values()
-    col = get_column_map(rows[0])
-
-    idx_full = col.get("full_name")
-    idx_company = col.get("provide_your_business_name")
-    idx_phone = col.get("phone_number")
-    idx_email = col.get("email")
-
-    idx_exhibitor = col.get("do_you_want_to_be_an_exhibitor?")
-    idx_speaker = col.get("do_you_want_to_be_a_speaker?")
-
-    for row in rows[1:]:
-        try:
-            email = row[idx_email].strip().lower()
-        except:
-            continue
-
-        if not email:
-            continue
-
-        first, last = split_full_name(row[idx_full])
-
-        # Exhibitor
-        if row[idx_exhibitor].strip().lower() == "yes" and email not in existing_exh:
-            exh_batch.append({
-                "first": first,
-                "last": last,
-                "company": row[idx_company],
-                "mobile": row[idx_phone],
-                "email": email,
-                "interest": "Exhibitor",
-                "show": META_LONDON_SHOW_NAME
-            })
-            existing_exh.add(email)
-
-        # Speaker
-        if row[idx_speaker].strip().lower() == "yes" and email not in existing_spk:
-            spk_batch.append({
-                "first": first,
-                "last": last,
-                "company": row[idx_company],
-                "mobile": row[idx_phone],
-                "email": email,
-                "interest": "Speaker",
-                "show": META_LONDON_SHOW_NAME
-            })
-            existing_spk.add(email)
-        
-        # Visitor (both NO)
-        if (
-            row[idx_exhibitor].strip().lower() == "no"
-            and row[idx_speaker].strip().lower() == "no"
-            and email not in vis_existing
-        ):
-            visitor_batch.append({
-                "first": first,
-                "last": last,
-                "company": row[idx_company],
-                "mobile": row[idx_phone],
-                "email": email,
-                "show": META_LONDON_SHOW_NAME
-            })
-            vis_existing.add(email)
-
-
-# ---------------- PROCESS 5: META LEAD BASED ADS ----------------
-def process_meta_lead_based_ads(exh_batch, existing_exh):
+# ---------------- PROCESS 2: ACTIVE META EXHIBITOR ADS ----------------
+def process_active_meta_exhibitor_ads(exh_batch, existing_exh):
     sheet = client.open(META_SOURCE_SHEET)
 
-    for tab_name in META_LEAD_BASED_TABS:
+    for tab_name, show_name in ACTIVE_META_EXHIBITOR_TABS.items():
         ws = sheet.worksheet(tab_name)
         rows = ws.get_all_values()
+
+        if not rows:
+            continue
+
         col = get_column_map(rows[0])
 
+        idx_created_time = col.get("created_time")
         idx_full = col.get("full_name")
         idx_company = col.get("company_name")
-        idx_phone = col.get("phone") or col.get("phone_number")
-        idx_email = col.get("email") or col.get("work_email")
-        idx_form = col.get("form_name")
+        idx_phone = col.get("phone_number")
+        idx_email = col.get("work_email")
+        idx_budget = col.get("what_is_your_budget_for_exhibition_?")
+        idx_call_window = col.get("preffered_time_to_connect_over_phone_call?")
+        idx_lead_status = col.get("lead_status")
+        idx_participation = col.get("how_do_you_want_to_participate_in_b2b_growth_expo?")
 
         for row in rows[1:]:
-            try:
-                email = row[idx_email].strip().lower()
-            except:
-                continue
+            email = safe_get(row, idx_email).lower()
 
             if not email or email in existing_exh:
                 continue
 
-            first, last = split_full_name(row[idx_full])
-            show_name = META_LEAD_BASED_SHOW_MAP.get(
-                tab_name.strip(),
-                extract_expo_name(row[idx_form])  # fallback safety
-            )
+            first, last = split_full_name(safe_get(row, idx_full))
 
             exh_batch.append({
                 "first": first,
                 "last": last,
-                "company": row[idx_company],
-                "mobile": row[idx_phone],
+                "company": safe_get(row, idx_company),
+                "mobile": safe_get(row, idx_phone),
                 "email": email,
                 "show": show_name,
-                "interest": "Exhibitor"
+                "interest": "Exhibitor",
+                "budget": safe_get(row, idx_budget),
+                "lead_status": safe_get(row, idx_lead_status),
+                "preferred_call_window": safe_get(row, idx_call_window),
+                "lead_time": safe_get(row, idx_created_time),
+                "enquiry_type": safe_get(row, idx_participation),
             })
 
             existing_exh.add(email)
-
 
 # ---------------- INSERTION ----------------
 def batch_insert_rows(ws_name, rows, mode="exhibitor", lead_source="Eventbrite"):
@@ -453,22 +259,13 @@ def batch_insert_rows(ws_name, rows, mode="exhibitor", lead_source="Eventbrite")
     header = ws.row_values(1)
     mapping = get_column_map(header)
 
-    # -----------------------------------------------
-    # SAFE BUILDER SWITCH
-    # EVENTBRITE rows use build_eventbrite_row()
-    # META rows use build_meta_row()
-    # -----------------------------------------------
     if lead_source == "Eventbrite":
         formatted = [build_eventbrite_row(mapping, r, mode) for r in rows]
-    elif mode == "visitor":
-        formatted = [build_visitor_row(mapping, r, lead_source) for r in rows]
     else:
         formatted = [build_meta_row(mapping, r, lead_source) for r in rows]
-    # -----------------------------------------------
 
     blank = [[""] * len(header) for _ in range(len(rows))]
     ws.insert_rows(blank, row=2)
-
     ws.update("A2", formatted, value_input_option="USER_ENTERED")
 
 # ---------------- RUN ALL ----------------
@@ -479,15 +276,7 @@ def run_all():
 
     event_exh = []
     event_spk = []
-
-    meta_std = []
-    meta_campaign_exh = []
-    meta_campaign_spk = []
-    meta_london_exh = []
-    meta_london_spk = []
-    meta_lead_based_exh = []
-    meta_visitors = []
-
+    active_meta_exh = []
 
     # ---- Process Eventbrite ----
     for tab in SOURCE_TABS:
@@ -497,44 +286,11 @@ def run_all():
     print(" Exhibitors:", len(event_exh))
     print(" Speakers:", len(event_spk))
 
-    # ---- Process Meta Standard Leads ----
-    process_meta_standard(meta_std, exh_existing)
-    print("\nMeta Standard Summary:")
-    print(" Exhibitors:", len(meta_std))
+    # ---- Process Active Meta Exhibitor Ads ----
+    process_active_meta_exhibitor_ads(active_meta_exh, exh_existing)
 
-    # ---- Process Meta Campaign Leads ----
-    process_meta_campaign(meta_campaign_exh, meta_campaign_spk, meta_visitors, exh_existing, spk_existing, vis_existing)
-
-    print("\nMeta Campaign Summary:")
-    print(" Exhibitors:", len(meta_campaign_exh))
-    print(" Speakers:", len(meta_campaign_spk))
-    print(" Visitors:", len(meta_visitors))
-
-    # ---- Process Meta London Campaign Leads ----
-    process_meta_london_campaign(
-        meta_london_exh,
-        meta_london_spk,
-        meta_visitors,
-        exh_existing,
-        spk_existing,
-        vis_existing
-    )
-
-    print("\nMeta London Campaign Summary:")
-    print(" Exhibitors:", len(meta_london_exh))
-    print(" Speakers:", len(meta_london_spk))
-    print(" Visitors:", len(meta_visitors))
-
-        # ---- Process Meta Lead Based Ads ----
-    process_meta_lead_based_ads(
-        meta_lead_based_exh, 
-        exh_existing
-    )
-
-    print("\nMeta Lead-Based Ads Summary:")
-    print(" Exhibitors:", len(meta_lead_based_exh))
-
-
+    print("\nActive Meta Exhibitor Ads Summary:")
+    print(" Exhibitors:", len(active_meta_exh))
 
     # ---- Insert all ----
     if event_exh:
@@ -543,29 +299,8 @@ def run_all():
     if event_spk:
         batch_insert_rows(SPEAKER_TAB, event_spk, "speaker", "Eventbrite")
 
-    if meta_std:
-        batch_insert_rows(EXHIBITOR_TAB, meta_std, "exhibitor", "Meta Lead")
-
-    if meta_campaign_exh:
-        batch_insert_rows(EXHIBITOR_TAB, meta_campaign_exh, "exhibitor", "Meta Lead – Campaign")
-
-    if meta_campaign_spk:
-        batch_insert_rows(SPEAKER_TAB, meta_campaign_spk, "speaker", "Meta Lead – Campaign")
-    
-    if meta_london_exh:
-        batch_insert_rows(EXHIBITOR_TAB,meta_london_exh,"exhibitor","Meta Lead – London Campaign")
-
-    if meta_london_spk:
-        batch_insert_rows(SPEAKER_TAB,meta_london_spk,"speaker","Meta Lead – London Campaign")
-    
-    if meta_lead_based_exh:
-        batch_insert_rows(EXHIBITOR_TAB,meta_lead_based_exh,"exhibitor","Meta Lead – Lead Based Ad")
-
-    if meta_visitors:
-        batch_insert_rows(VISITOR_TAB,meta_visitors,mode="visitor",lead_source="Meta Lead – Visitor")
-
-
-
+    if active_meta_exh:
+        batch_insert_rows(EXHIBITOR_TAB, active_meta_exh, "exhibitor", "Meta Lead – Active Ads")
 
     print("\n=== All Processing Completed ===\n")
 
