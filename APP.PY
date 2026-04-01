@@ -27,6 +27,7 @@ META_SOURCE_SHEET = "Meta Leads"
 ACTIVE_META_EXHIBITOR_TABS = {
     "MKE-EXIBITORS 29 APRIL 2026-2": "Milton Keynes Expo 2026",
     "Bournemouth - Exhibitor 2026": "Bournemouth Expo 2026",
+    "Milton Keynes | Expo'26 - Exhibitor": "Milton Keynes Expo 2026",
 }
 
 # === Google Auth ===
@@ -213,18 +214,29 @@ def process_active_meta_exhibitor_ads(exh_batch, existing_exh):
 
         col = get_column_map(rows[0])
 
-        idx_created_time = col.get("created_time")
+        # Common fields
         idx_full = col.get("full_name")
-        idx_company = col.get("company_name")
-        idx_phone = col.get("phone_number")
         idx_email = col.get("work_email")
+        idx_phone = col.get("phone_number")
+        idx_company = col.get("company_name")
+
+        # Alternate field names for new tab
+        if idx_email is None:
+            idx_email = col.get("email")
+        if idx_phone is None:
+            idx_phone = col.get("phone")
+        if idx_company is None:
+            idx_company = col.get("website")
+
+        # Optional old-tab extra fields
+        idx_created_time = col.get("created_time")
         idx_budget = col.get("what_is_your_budget_for_exhibition_?")
         idx_call_window = col.get("preffered_time_to_connect_over_phone_call?")
         idx_lead_status = col.get("lead_status")
         idx_participation = col.get("how_do_you_want_to_participate_in_b2b_growth_expo?")
 
         for row in rows[1:]:
-            email = safe_get(row, idx_email).lower()
+            email = safe_get(row, idx_email).lower().strip()
 
             if not email or email in existing_exh:
                 continue
@@ -234,7 +246,7 @@ def process_active_meta_exhibitor_ads(exh_batch, existing_exh):
             exh_batch.append({
                 "first": first,
                 "last": last,
-                "company": safe_get(row, idx_company),
+                "company": safe_get(row, idx_company),   # website will go into Company Name for this new tab
                 "mobile": safe_get(row, idx_phone),
                 "email": email,
                 "show": show_name,
