@@ -25,7 +25,9 @@ ACTIVE_META_EXHIBITOR_TABS = {
     "MKE-EXIBITORS 29 APRIL 2026-2": "Milton Keynes Expo 2026",
     "Bournemouth - Exhibitor 2026": "Bournemouth Expo 2026",
     "Exhibitor Application - UK Expo-copy": "Milton Keynes Expo 2026",
-    "Bournemouth Expo | New June 2026": "Bournemouth Expo 2026",   # NEW TAB
+    "Bournemouth Expo | New June 2026": "Bournemouth Expo 2026",
+    "Exhibitor Application - Portsmouth Expo": "Portsmouth Expo 2026",   # NEW
+    "Exhibitor Application - UK Expo-copy-copy": "Milton Keynes Expo 2026",  # NEW
 }
 
 # === Google Auth ===
